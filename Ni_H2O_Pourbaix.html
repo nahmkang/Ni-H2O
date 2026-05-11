@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Ni–H₂O Pourbaix Diagram</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:780px;margin:20px auto;padding:0 16px;background:#fff;color:#222}
+.row{display:grid;grid-template-columns:1fr;gap:14px;margin:0 0 16px;max-width:280px}
+.box{background:#f5f5f0;border-radius:8px;padding:12px}
+.box label{font-size:15px;color:#555;display:block;margin-bottom:6px}
+input[type=number]{width:80px;padding:6px 8px;border:1px solid #bbb;border-radius:5px;font-size:16px}
+select{padding:6px 8px;border:1px solid #bbb;border-radius:5px;font-size:16px}
+.ctrl{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.ctrl label{display:flex;align-items:center;gap:5px;font-size:15px}
+button{padding:8px 18px;font-size:15px;cursor:pointer;border-radius:5px;border:1px solid #999;background:#fff}
+button.primary{background:#333;color:#fff;border:none;font-weight:500}
+canvas{display:block;margin:0 auto}
+#info{margin-top:8px;font-size:12px;color:#444;background:#f5f5f0;padding:10px;border-radius:6px;line-height:1.7}
+#png-box{display:none;margin:0 0 12px;padding:12px;background:#fffbe6;border:1px solid #d4af37;border-radius:8px}
+#png-box img{max-width:100%;cursor:context-menu}
+</style></head><body>
+<div class="row">
+  <div class="box"><label>Ni²⁺ concentration</label><input type="number" id="ni" value="0.01" step="any" min="0.0001"> <select id="niu"><option value="0.001">mM</option><option value="1" selected>M</option></select></div>
+</div>
+<div class="ctrl">
+  <label><input type="checkbox" id="pm"> Paper style</label>
+  <label><input type="checkbox" id="wl" checked> Water lines</label>
+  <label>Ref: <select id="re"><option value="0" selected>SHE</option><option value="0.197">Ag/AgCl</option><option value="0.241">SCE</option><option value="RHE">RHE</option></select></label>
+  <span style="flex:1"></span>
+  <button onclick="render()">Redraw</button>
+  <button class="primary" onclick="exportPNG()">Save PNG</button>
+</div>
+<div id="png-box"><div style="font-size:14px;margin-bottom:6px;">✓ Right-click image → Save</div><div id="png-host"></div></div>
+<canvas id="cv"></canvas>
+<div id="info"></div>
+<script>
+(function(){
+/*
+  ALL E° derived from Bard Ch.12 ΔG° (self-consistent set):
+  
+  Line A: Ni2+ + 2e- -> Ni
+    E° = -0.2405 V,  slope = 0 V/pH  (0 H+, 2 e-)
+    
+  Line B: Ni(OH)2 + 2H+ + 2e- -> Ni + 2H2O
+    E° = +0.1098 V,  slope = -0.05916 V/pH  (2 H+, 2 e-)
+    
+  Line C: Ni(OH)3 + H+ + e- -> Ni(OH)2 + H2O
+    E° = +1.5385 V,  slope = -0.05916 V/pH  (1 H+, 1 e-)
+    
+  Line D: Ni(OH)3 + 3H+ + e- -> Ni2+ + 3H2O
+    E° = +2.2389 V,  slope = -0.17747 V/pH  (3 H+, 1 e-)
+    
+  Line E: Ni(OH)2 + 2H+ -> Ni2+ + 2H2O  (chemical)
+    Ksp = 6.96e-17
+*/
+
+// Each line has its OWN E° and slope
+var SA = 0.00000;     // Line A slope: -(0/2)*S = 0
+var SB = -0.05916;    // Line B slope: -(2/2)*S
+var SC = -0.05916;    // Line C slope: -(1/1)*S
+var SD = -0.17747;    // Line D slope: -(3/1)*S
+var S  = 0.05916;
+
+var E0A = -0.2405;    // Line A E°
+var E0B = +0.1098;    // Line B E°
+var E0C = +1.5385;    // Line C E°
+var E0D = +2.2389;    // Line D E°
+var Ksp = 6.96e-17;
+
+// Line equations (E vs pH at given [Ni2+] = CN)
+function lineA(pH,CN){ return E0A + (S/2)*Math.log10(CN); }          // no pH dependence
+function lineB(pH,CN){ return E0B + SB*pH; }                          // no [Ni2+] dependence
+function lineC(pH,CN){ return E0C + SC*pH; }                          // no [Ni2+] dependence
+function lineD(pH,CN){ return E0D + SD*pH + S*Math.log10(CN); }       // depends on both
+
+// Precipitation pH
+function pHprecip(CN){ return 0.5*Math.log10(Ksp*1e28/CN); }
+// Simplified: pH = 14 + 0.5*log(Ksp/CN) but using acid K:
+// K_acid = Ksp/Kw^2, pH = 0.5*log(K_acid/CN)
+// Let me just compute directly:
+function pHprecip2(CN){
+  var logK = Math.log10(Ksp) + 28; // log(Ksp/Kw^2) = log(Ksp) - 2*log(Kw) = log(Ksp)+28
+  return 0.5*(logK - Math.log10(CN));
+}
+
+// C∩D intersection pH (upper kink)
+function pHcd(CN){ return (E0D + S*Math.log10(CN) - E0C) / (SC - SD); }
+
+var W=700,HT=520,ML=72,MR=28,MT=32,MB=58;
+var PW=W-ML-MR,PH=HT-MT-MB;
+var pHn=0,pHx=14,En=-1.2,Ex=2.5;
+function xp(p){return ML+(p-pHn)/(pHx-pHn)*PW;}
+function yp(e){return MT+(Ex-e)/(Ex-En)*PH;}
+function gN(){return parseFloat(document.getElementById('ni').value)*parseFloat(document.getElementById('niu').value);}
+function gR(p){var v=document.getElementById('re').value;return v==='RHE'?-S*p:parseFloat(v);}
+function gL(){return document.getElementById('re').selectedOptions[0].text;}
+
+// Classifier using the verified topology
+function classify(pH,Eshe,CN){
+  var pp = pHprecip2(CN);
+  var eA = lineA(pH,CN);
+  var eB = lineB(pH,CN);
+  var eC = lineC(pH,CN);
+  var eD = lineD(pH,CN);
+
+  if(pH < pp){
+    // Dissolved Ni2+ region: upper boundary is Line D (Ni(OH)3/Ni2+)
+    if(Eshe < eA) return 'Ni';
+    if(Eshe < eD) return 'Ni2+';
+    return 'Ni(OH)3';
+  } else {
+    // Solid Ni(OH)2 region
+    if(Eshe < eB) return 'Ni';
+    if(Eshe < eC) return 'Ni(OH)2';
+    return 'Ni(OH)3';
+  }
+}
+
+var NM={'Ni':'Ni\u2070','Ni2+':'Ni\u00B2\u207A','Ni(OH)2':'Ni(OH)\u2082','Ni(OH)3':'Ni(OH)\u2083'};
+var CL={'Ni':'#D3D1C7','Ni2+':'#85B7EB','Ni(OH)2':'#7DD8A8','Ni(OH)3':'#F09595'};
+
+function draw(cv,sc){
+  var CN=gN(),ip=document.getElementById('pm').checked,wl=document.getElementById('wl').checked;
+  var fn=ip?"'Times New Roman',serif":"system-ui,sans-serif";
+  cv.width=W*sc;cv.height=HT*sc;var c=cv.getContext('2d');c.scale(sc,sc);
+  c.fillStyle='white';c.fillRect(0,0,W,HT);
+
+  // Fill regions (pixel by pixel from classifier)
+  if(!ip){var st=2;for(var px=ML;px<ML+PW;px+=st)for(var py=MT;py<MT+PH;py+=st){
+    var p=pHn+(px-ML)/PW*(pHx-pHn),e=Ex-(py-MT)/PH*(Ex-En);
+    c.fillStyle=CL[classify(p,e+gR(p),CN)]||'#ddd';
+    c.fillRect(px,py,st+.5,st+.5);
+  }}
+
+  c.strokeStyle='#000';c.lineWidth=1;c.strokeRect(ML,MT,PW,PH);
+
+  // Water lines
+  if(wl){c.strokeStyle='rgba(0,0,0,.4)';c.lineWidth=.8;c.setLineDash([5,3]);
+    c.beginPath();c.moveTo(xp(0),yp(1.229-gR(0)));c.lineTo(xp(14),yp(1.229-S*14-gR(14)));c.stroke();
+    c.beginPath();c.moveTo(xp(0),yp(-gR(0)));c.lineTo(xp(14),yp(-S*14-gR(14)));c.stroke();c.setLineDash([]);}
+
+  // === ANALYTICAL STRAIGHT LINES ===
+  c.strokeStyle='#000';c.lineWidth=1.5;
+  var pp = pHprecip2(CN);
+  var pc = pHcd(CN);
+
+  // Helper: convert SHE to display E
+  function eD(Eshe,pH){return Eshe-gR(pH);}
+
+  // UPPER BOUNDARY:
+  // In dissolved region (pH < pp): Line D is always below Line C after their crossing
+  // So upper = min(C,D). But we need to draw whichever is active.
+  // For pH < pc: Line D > Line C, so upper = Line C
+  // For pH > pc and pH < pp: Line D < Line C, so upper = Line D
+  // For pH > pp: upper = Line C (solid region)
+  
+  // Segment 1: Line D from pH=0 to pH=pc, BUT only if Line D < Line C there
+  // Actually at pH < pc, Line D > Line C, so Line C is the upper boundary
+  if(pc > 0 && pc < pp){
+    // pH 0 to pc: Line C is lower (active upper boundary)
+    // WAIT: at pH < pc, Line D > Line C. min(C,D) = Line C. 
+    // But Line C is Ni(OH)3/Ni(OH)2 — does Ni(OH)2 exist here? 
+    // Below Line C: Ni2+ is dissolved. Above Line C: Ni(OH)2 could form.
+    // Above Line D: Ni(OH)3 forms.
+    // So between C and D: Ni(OH)2 forms electrochemically!
+    // This means we have TWO lines: C (lower) separating Ni2+ from Ni(OH)2,
+    // and D (higher) separating... no. D is Ni(OH)3/Ni2+.
+    // Between C and D: need to check. 
+    // Actually for the simple Ni-H2O diagram, at pH < pc:
+    // Line C < Line D. So going up in E:
+    //   Below Line A: Ni metal
+    //   Line A to Line C: Ni2+ dissolved
+    //   Line C to Line D: Ni(OH)2 (electrochemically deposited)
+    //   Above Line D: Ni(OH)3
+    // This is 4 regions stacked vertically!
+    
+    // But wait: this means Ni(OH)2 appears even at low pH, which is unusual.
+    // In the classic Pourbaix diagram for Ni-H2O, Ni(OH)2 only appears 
+    // to the right of the precipitation line.
+    
+    // The issue: at pH < precipitation, Ni(OH)2 is thermodynamically 
+    // unstable relative to Ni2+ (it dissolves). But electrochemically,
+    // at potentials above Line C, you CAN oxidize Ni(OH)2 to Ni(OH)3.
+    // The question is: does Ni(OH)2 form at all at these pH values?
+    
+    // In a Pourbaix diagram, we only show the MOST STABLE phase.
+    // At pH < pp: Ni2+ is more stable than Ni(OH)2.
+    // So the Ni(OH)2 field should NOT appear here.
+    // The upper boundary of Ni2+ is Line D (Ni(OH)3/Ni2+).
+    
+    // CONCLUSION: In the dissolved region, the upper boundary is ALWAYS Line D.
+    // Line C is irrelevant in the dissolved region because Ni(OH)2 is unstable there.
+    
+    // Draw Line D from pH 0 to pp (entire dissolved region)
+    c.beginPath();
+    c.moveTo(xp(0), yp(eD(lineD(0,CN),0)));
+    c.lineTo(xp(pp), yp(eD(lineD(pp,CN),pp)));
+    c.stroke();
+  } else {
+    // pc >= pp: Line D is always above Line C in the dissolved region
+    // Draw Line D from pH 0 to pp
+    c.beginPath();
+    c.moveTo(xp(0), yp(eD(lineD(0,CN),0)));
+    c.lineTo(xp(pp), yp(eD(lineD(pp,CN),pp)));
+    c.stroke();
+  }
+  // Line C from pp to 14 (solid Ni(OH)2 region)
+  c.beginPath();
+  c.moveTo(xp(pp), yp(eD(lineC(pp,CN),pp)));
+  c.lineTo(xp(14), yp(eD(lineC(14,CN),14)));
+  c.stroke();
+
+  // LOWER BOUNDARY:
+  // Segment 1: Line A from pH=0 to pH=pp (horizontal)
+  c.beginPath();
+  c.moveTo(xp(0), yp(eD(lineA(0,CN),0)));
+  c.lineTo(xp(pp), yp(eD(lineA(pp,CN),pp)));
+  c.stroke();
+  // Segment 2: Line B from pH=pp to pH=14 (gentle)
+  c.beginPath();
+  c.moveTo(xp(pp), yp(eD(lineB(pp,CN),pp)));
+  c.lineTo(xp(14), yp(eD(lineB(14,CN),14)));
+  c.stroke();
+
+  // VERTICAL: precipitation boundary at pH=pp
+  // Bottom: Line A (lower boundary of Ni2+)
+  // Top: where Line D meets Line C (both boundaries connect here)
+  var E_bot = lineA(pp,CN);
+  var E_top_D = lineD(pp,CN);  // top of dissolved region
+  var E_top_C = lineC(pp,CN);  // bottom of Ni(OH)3 in solid region
+  // Draw vertical from Line A to Line C (full height of the boundary)
+  c.beginPath();
+  c.moveTo(xp(pp), yp(eD(E_bot,pp)));
+  c.lineTo(xp(pp), yp(eD(E_top_C,pp)));
+  c.stroke();
+
+  // Ticks
+  c.lineWidth=1;c.fillStyle='#000';c.font='12px '+fn;c.textAlign='center';
+  for(var t=0;t<=14;t+=2){c.beginPath();c.moveTo(xp(t),MT+PH);c.lineTo(xp(t),MT+PH+5);c.stroke();c.fillText(t,xp(t),MT+PH+18);}
+  c.textAlign='right';for(var i=Math.ceil(En*2);i<=Math.floor(Ex*2);i++){var e2=i/2;c.beginPath();c.moveTo(ML,yp(e2));c.lineTo(ML-5,yp(e2));c.stroke();c.fillText(e2.toFixed(1),ML-8,yp(e2)+4);}
+  c.font='14px '+fn;c.textAlign='center';c.fillText('pH',ML+PW/2,HT-16);
+  c.save();c.translate(16,MT+PH/2);c.rotate(-Math.PI/2);c.fillText('E vs '+gL()+' / V',0,0);c.restore();
+  if(wl){c.font='italic 10px '+fn;c.textAlign='left';c.fillText('(b)',xp(.3),yp(1.229-gR(.3))-4);c.fillText('(a)',xp(.3),yp(-gR(.3))+12);}
+
+  // Region labels from centroids
+  var ct={};for(var p3=.3;p3<13.8;p3+=.3){var r3=gR(p3);for(var e3=En+.1;e3<Ex-.1;e3+=.06){var ss=classify(p3,e3+r3,CN);if(!ct[ss])ct[ss]={sx:0,sy:0,n:0};ct[ss].sx+=p3;ct[ss].sy+=e3;ct[ss].n++;}}
+  c.font='500 14px '+fn;c.textAlign='center';c.fillStyle='#000';
+  for(var k in ct){var v=ct[k];if(v.n<10)continue;c.fillText(NM[k]||k,xp(v.sx/v.n),yp(v.sy/v.n)+5);}
+
+  // Title
+  c.font='italic 12px '+fn;c.textAlign='left';
+  var fm=function(v){return v>=1?v.toFixed(2)+'M':(v>=.001?(v*1e3).toFixed(1)+'mM':(v*1e6).toFixed(0)+'\u00B5M');};
+  c.fillText('Ni\u2013H\u2082O, [Ni\u00B2\u207A]='+fm(CN)+', 25\u00B0C',ML,22);
+}
+
+window.render=function(){
+  draw(document.getElementById('cv'),1.5);
+  var CN=gN();
+  var pp=pHprecip2(CN);
+  var pc=pHcd(CN);
+  document.getElementById('info').innerHTML=
+    '<b>Verified E\u00B0 (all from \u0394G\u00B0):</b><br>'+
+    'A: Ni\u00B2\u207A/Ni, E\u00B0='+E0A.toFixed(4)+'V, <b>slope=0</b> (0H\u207A/2e\u207B)<br>'+
+    'B: Ni(OH)\u2082/Ni, E\u00B0='+E0B.toFixed(4)+'V, <b>slope=\u2212'+(-SB).toFixed(5)+'</b> (2H\u207A/2e\u207B)<br>'+
+    'C: Ni(OH)\u2083/Ni(OH)\u2082, E\u00B0='+E0C.toFixed(4)+'V, <b>slope=\u2212'+(-SC).toFixed(5)+'</b> (1H\u207A/1e\u207B)<br>'+
+    'D: Ni(OH)\u2083/Ni\u00B2\u207A, E\u00B0='+E0D.toFixed(4)+'V, <b>slope=\u2212'+(-SD).toFixed(5)+'</b> (3H\u207A/1e\u207B)<br>'+
+    'Ksp='+Ksp.toExponential(2)+
+    ' | Upper kink (C\u2229D): pH='+pc.toFixed(2)+
+    ' | Precip (vertical): pH='+pp.toFixed(2);
+};
+
+window.exportPNG=function(){
+  var cv=document.createElement('canvas');draw(cv,3);
+  var img=document.createElement('img');img.src=cv.toDataURL('image/png');img.style.maxWidth='100%';img.title='Right-click to save';
+  document.getElementById('png-host').innerHTML='';document.getElementById('png-host').appendChild(img);document.getElementById('png-box').style.display='block';};
+
+['ni','niu','pm','wl','re'].forEach(function(id){var el=document.getElementById(id);el.addEventListener('input',render);el.addEventListener('change',render);});
+render();
+})();
+</script></body></html>
