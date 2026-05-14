@@ -1,277 +1,376 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Ni–H₂O Pourbaix Diagram</title>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ni-H2O Pourbaix Diagram</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:780px;margin:20px auto;padding:0 16px;background:#fff;color:#222}
-.row{display:grid;grid-template-columns:1fr;gap:14px;margin:0 0 16px;max-width:280px}
-.box{background:#f5f5f0;border-radius:8px;padding:12px}
-.box label{font-size:15px;color:#555;display:block;margin-bottom:6px}
-input[type=number]{width:80px;padding:6px 8px;border:1px solid #bbb;border-radius:5px;font-size:16px}
-select{padding:6px 8px;border:1px solid #bbb;border-radius:5px;font-size:16px}
-.ctrl{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
-.ctrl label{display:flex;align-items:center;gap:5px;font-size:15px}
-button{padding:8px 18px;font-size:15px;cursor:pointer;border-radius:5px;border:1px solid #999;background:#fff}
-button.primary{background:#333;color:#fff;border:none;font-weight:500}
-canvas{display:block;margin:0 auto}
-#info{margin-top:8px;font-size:12px;color:#444;background:#f5f5f0;padding:10px;border-radius:6px;line-height:1.7}
-#png-box{display:none;margin:0 0 12px;padding:12px;background:#fffbe6;border:1px solid #d4af37;border-radius:8px}
-#png-box img{max-width:100%;cursor:context-menu}
-</style></head><body>
-<div class="row">
-  <div class="box"><label>Ni²⁺ concentration</label><input type="number" id="ni" value="0.01" step="any" min="0.0001"> <select id="niu"><option value="0.001">mM</option><option value="1" selected>M</option></select></div>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         color: #2C2C2A; background: #f5f4f0; padding: 1.5rem; max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 18px; font-weight: 500; margin: 0 0 1rem; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr));
+              gap: 14px; background: white; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;
+              border: 0.5px solid rgba(0,0,0,0.15); }
+  .ctl { display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: 13px; color: #5F5E5A; }
+  .rowin { display: flex; align-items: center; gap: 8px; }
+  input[type=range] { flex: 1; }
+  .out { font-size: 13px; font-weight: 500; min-width: 64px; text-align: left; }
+  select { font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 0.5px solid rgba(0,0,0,0.2); }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  canvas { display: block; width: 100%; height: auto; background: white;
+           border: 0.5px solid rgba(0,0,0,0.15); border-radius: 10px; }
+  button { font-size: 13px; padding: 8px 14px; background: white;
+           border: 0.5px solid rgba(0,0,0,0.2); border-radius: 6px; cursor: pointer; }
+  .info { font-size: 12px; color: #5F5E5A; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+<h1>Ni-H₂O Pourbaix diagram (25 °C)</h1>
+<p style="color:#5F5E5A; font-size:13px; margin-top:-0.5rem; margin-bottom: 1rem">The simplest Ni system with no complexing agents. Ni²⁺ is the only dissolved species; Ni(OH)₂ and Ni(OH)₃ are the solid phases. As Ni concentration rises, the dissolved-Ni²⁺ region expands and Ni(OH)₂ precipitation pH shifts left.</p>
+<div class="controls">
+  <div class="ctl">
+    <label>Total Ni concentration</label>
+    <div class="rowin"><input id="cNi" type="range" min="-1" max="1" value="-1" step="0.02"><span class="out" id="cNiOut">0.1 M</span></div>
+  </div>
+  <div class="ctl">
+    <label>Reference electrode</label>
+    <select id="ref">
+      <option value="0">SHE (0 V)</option>
+      <option value="0.241">SCE (+0.241 V)</option>
+      <option value="0.197">Ag/AgCl sat. KCl (+0.197 V)</option>
+      <option value="0.210">Ag/AgCl 3M KCl (+0.210 V)</option>
+      <option value="0.109">Hg/HgO 1M NaOH (+0.109 V)</option>
+      <option value="RHE">RHE</option>
+    </select>
+  </div>
+  <div class="ctl" style="justify-content:flex-end">
+    <label class="check"><input id="water" type="checkbox" checked> Water lines</label>
+    <label class="check"><input id="paper" type="checkbox"> Paper mode</label>
+  </div>
 </div>
-<div class="ctrl">
-  <label><input type="checkbox" id="pm"> Paper style</label>
-  <label><input type="checkbox" id="wl" checked> Water lines</label>
-  <label>Ref: <select id="re"><option value="0" selected>SHE</option><option value="0.197">Ag/AgCl</option><option value="0.241">SCE</option><option value="RHE">RHE</option></select></label>
-  <span style="flex:1"></span>
-  <button onclick="render()">Redraw</button>
-  <button class="primary" onclick="exportPNG()">Save PNG</button>
-</div>
-<div id="png-box"><div style="font-size:14px;margin-bottom:6px;">✓ Right-click image → Save</div><div id="png-host"></div></div>
-<canvas id="cv"></canvas>
-<div id="info"></div>
+<canvas id="cv" width="880" height="560"></canvas>
+<div style="margin-top:8px"><button id="png">Generate PNG</button> <span class="info" id="info"></span></div>
+<div id="pngOut" style="margin-top:8px"></div>
+<details style="margin-top:1rem; font-size:13px; background:white; padding:0.75rem 1rem; border:0.5px solid rgba(0,0,0,0.15); border-radius:8px" open>
+<summary style="cursor:pointer; font-weight:500">All Nernst equations used in this diagram</summary>
+<p style="margin:0.5rem 0 0.25rem; color:#5F5E5A">S = 0.05916 V (which is RT·ln10/F at 25 °C). Solids have activity = 1. Below the precipitation pH, [Ni²⁺] = C_Ni. Above it, [Ni²⁺] is pinned by Ksp.</p>
+
+<h4 style="margin:0.75rem 0 0.25rem; font-size:13px">Electrode half-reactions (boundary lines on the diagram)</h4>
+<table style="width:100%; border-collapse:collapse; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px">
+<thead style="background:#f5f4f0"><tr><th style="text-align:left; padding:4px 6px; border-bottom:0.5px solid rgba(0,0,0,0.15)">Line</th><th style="text-align:left; padding:4px 6px; border-bottom:0.5px solid rgba(0,0,0,0.15)">Half-reaction</th><th style="text-align:left; padding:4px 6px; border-bottom:0.5px solid rgba(0,0,0,0.15)">E° (V)</th><th style="text-align:left; padding:4px 6px; border-bottom:0.5px solid rgba(0,0,0,0.15)">Nernst expression</th></tr></thead>
+<tbody>
+<tr><td style="padding:3px 6px">A</td><td style="padding:3px 6px">Ni²⁺ + 2e⁻ → Ni(s)</td><td style="padding:3px 6px">−0.2405</td><td style="padding:3px 6px">E = −0.2405 + (S/2)·log[Ni²⁺]</td></tr>
+<tr><td style="padding:3px 6px">B</td><td style="padding:3px 6px">Ni(OH)₂(s) + 2H⁺ + 2e⁻ → Ni(s) + 2H₂O</td><td style="padding:3px 6px">+0.1098</td><td style="padding:3px 6px">E = 0.1098 − S·pH</td></tr>
+<tr><td style="padding:3px 6px">C</td><td style="padding:3px 6px">Ni(OH)₃(s) + H⁺ + e⁻ → Ni(OH)₂(s) + H₂O</td><td style="padding:3px 6px">+1.308</td><td style="padding:3px 6px">E = 1.308 − S·pH</td></tr>
+<tr><td style="padding:3px 6px">D</td><td style="padding:3px 6px">Ni(OH)₃(s) + 3H⁺ + e⁻ → Ni²⁺ + 3H₂O</td><td style="padding:3px 6px">+2.2389</td><td style="padding:3px 6px">E = 2.2389 − 3S·pH − S·log[Ni²⁺]</td></tr>
+</tbody>
+</table>
+
+<h4 style="margin:0.75rem 0 0.25rem; font-size:13px">Precipitation (vertical line)</h4>
+<table style="width:100%; border-collapse:collapse; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px">
+<thead style="background:#f5f4f0"><tr><th style="text-align:left; padding:4px 6px; border-bottom:0.5px solid rgba(0,0,0,0.15)">Equilibrium</th><th style="text-align:left; padding:4px 6px; border-bottom:0.5px solid rgba(0,0,0,0.15)">Ksp / pH</th></tr></thead>
+<tbody>
+<tr><td style="padding:3px 6px">Ni(OH)₂(s) ⇌ Ni²⁺ + 2 OH⁻</td><td style="padding:3px 6px">Ksp = 6.96×10⁻¹⁷ (log Ksp = −16.16)</td></tr>
+<tr><td style="padding:3px 6px">Precipitation pH at C_Ni</td><td style="padding:3px 6px">pH = 14 + ½·log(Ksp/C_Ni)</td></tr>
+</tbody>
+</table>
+
+<p style="margin:0.5rem 0 0; color:#5F5E5A; font-size:12px">Source: standard E° values from Bard, <i>Standard Potentials in Aqueous Solution</i>. At C_Ni = 0.1 M, precipitation pH = 6.42; at 1 M, 5.92; at 10 M, 5.42.</p>
+</details>
 <script>
 (function(){
-/*
-  ALL E° derived from Bard Ch.12 ΔG° (self-consistent set):
-  
-  Line A: Ni2+ + 2e- -> Ni
-    E° = -0.2405 V,  slope = 0 V/pH  (0 H+, 2 e-)
-    
-  Line B: Ni(OH)2 + 2H+ + 2e- -> Ni + 2H2O
-    E° = +0.1098 V,  slope = -0.05916 V/pH  (2 H+, 2 e-)
-    
-  Line C: Ni(OH)3 + H+ + e- -> Ni(OH)2 + H2O
-    E° = +1.5385 V,  slope = -0.05916 V/pH  (1 H+, 1 e-)
-    
-  Line D: Ni(OH)3 + 3H+ + e- -> Ni2+ + 3H2O
-    E° = +2.2389 V,  slope = -0.17747 V/pH  (3 H+, 1 e-)
-    
-  Line E: Ni(OH)2 + 2H+ -> Ni2+ + 2H2O  (chemical)
-    Ksp = 6.96e-17
-*/
+  const S = 0.05916;
+  // Solid: Ni(OH)2 solubility product (Bard)
+  const Ksp = 6.96e-17;
+  // E0 (V vs SHE) — Bard
+  const E0_A0 = -0.2405;  // Ni2+ + 2e- -> Ni
+  const E0_B  =  0.1098;  // Ni(OH)2(s) + 2H+ + 2e- -> Ni + 2H2O
+  const E0_C  =  1.308;   // Ni(OH)3(s) + H+ + e- -> Ni(OH)2(s) + H2O
+  const E0_D0 =  2.2389;  // Ni(OH)3(s) + 3H+ + e- -> Ni2+ + 3H2O
 
-// Each line has its OWN E° and slope
-var SA = 0.00000;     // Line A slope: -(0/2)*S = 0
-var SB = -0.05916;    // Line B slope: -(2/2)*S
-var SC = -0.05916;    // Line C slope: -(1/1)*S
-var SD = -0.17747;    // Line D slope: -(3/1)*S
-var S  = 0.05916;
-
-var E0A = -0.2405;    // Line A E°
-var E0B = +0.1098;    // Line B E°
-var E0C = +1.5385;    // Line C E°
-var E0D = +2.2389;    // Line D E°
-var Ksp = 6.96e-17;
-
-// Line equations (E vs pH at given [Ni2+] = CN)
-function lineA(pH,CN){ return E0A + (S/2)*Math.log10(CN); }          // no pH dependence
-function lineB(pH,CN){ return E0B + SB*pH; }                          // no [Ni2+] dependence
-function lineC(pH,CN){ return E0C + SC*pH; }                          // no [Ni2+] dependence
-function lineD(pH,CN){ return E0D + SD*pH + S*Math.log10(CN); }       // depends on both
-
-// Precipitation pH
-function pHprecip(CN){ return 0.5*Math.log10(Ksp*1e28/CN); }
-// Simplified: pH = 14 + 0.5*log(Ksp/CN) but using acid K:
-// K_acid = Ksp/Kw^2, pH = 0.5*log(K_acid/CN)
-// Let me just compute directly:
-function pHprecip2(CN){
-  var logK = Math.log10(Ksp) + 28; // log(Ksp/Kw^2) = log(Ksp) - 2*log(Kw) = log(Ksp)+28
-  return 0.5*(logK - Math.log10(CN));
-}
-
-// C∩D intersection pH (upper kink)
-function pHcd(CN){ return (E0D + S*Math.log10(CN) - E0C) / (SC - SD); }
-
-var W=700,HT=520,ML=72,MR=28,MT=32,MB=58;
-var PW=W-ML-MR,PH=HT-MT-MB;
-var pHn=0,pHx=14,En=-1.2,Ex=2.5;
-function xp(p){return ML+(p-pHn)/(pHx-pHn)*PW;}
-function yp(e){return MT+(Ex-e)/(Ex-En)*PH;}
-function gN(){return parseFloat(document.getElementById('ni').value)*parseFloat(document.getElementById('niu').value);}
-function gR(p){var v=document.getElementById('re').value;return v==='RHE'?-S*p:parseFloat(v);}
-function gL(){return document.getElementById('re').selectedOptions[0].text;}
-
-// Classifier using the verified topology
-function classify(pH,Eshe,CN){
-  var pp = pHprecip2(CN);
-  var eA = lineA(pH,CN);
-  var eB = lineB(pH,CN);
-  var eC = lineC(pH,CN);
-  var eD = lineD(pH,CN);
-
-  if(pH < pp){
-    // Dissolved Ni2+ region: upper boundary is Line D (Ni(OH)3/Ni2+)
-    if(Eshe < eA) return 'Ni';
-    if(Eshe < eD) return 'Ni2+';
-    return 'Ni(OH)3';
-  } else {
-    // Solid Ni(OH)2 region
-    if(Eshe < eB) return 'Ni';
-    if(Eshe < eC) return 'Ni(OH)2';
-    return 'Ni(OH)3';
+  function fmtConc(M){
+    if (M >= 1)    return (M < 10 ? Math.round(M*100)/100 : Math.round(M*10)/10)+' M';
+    if (M >= 0.01) return (Math.round(M*1000)/1000)+' M';
+    if (M >= 1e-3) return (Math.round(M*100000)/100)+' mM';
+    if (M >= 1e-6) return (Math.round(M*1e8)/100)+' µM';
+    return (Math.round(M*1e11)/100)+' nM';
   }
-}
 
-var NM={'Ni':'Ni\u2070','Ni2+':'Ni\u00B2\u207A','Ni(OH)2':'Ni(OH)\u2082','Ni(OH)3':'Ni(OH)\u2083'};
-var CL={'Ni':'#D3D1C7','Ni2+':'#85B7EB','Ni(OH)2':'#7DD8A8','Ni(OH)3':'#F09595'};
-
-function draw(cv,sc){
-  var CN=gN(),ip=document.getElementById('pm').checked,wl=document.getElementById('wl').checked;
-  var fn=ip?"'Times New Roman',serif":"system-ui,sans-serif";
-  cv.width=W*sc;cv.height=HT*sc;var c=cv.getContext('2d');c.scale(sc,sc);
-  c.fillStyle='white';c.fillRect(0,0,W,HT);
-
-  // Fill regions (pixel by pixel from classifier)
-  if(!ip){var st=2;for(var px=ML;px<ML+PW;px+=st)for(var py=MT;py<MT+PH;py+=st){
-    var p=pHn+(px-ML)/PW*(pHx-pHn),e=Ex-(py-MT)/PH*(Ex-En);
-    c.fillStyle=CL[classify(p,e+gR(p),CN)]||'#ddd';
-    c.fillRect(px,py,st+.5,st+.5);
-  }}
-
-  c.strokeStyle='#000';c.lineWidth=1;c.strokeRect(ML,MT,PW,PH);
-
-  // Water lines
-  if(wl){c.strokeStyle='rgba(0,0,0,.4)';c.lineWidth=.8;c.setLineDash([5,3]);
-    c.beginPath();c.moveTo(xp(0),yp(1.229-gR(0)));c.lineTo(xp(14),yp(1.229-S*14-gR(14)));c.stroke();
-    c.beginPath();c.moveTo(xp(0),yp(-gR(0)));c.lineTo(xp(14),yp(-S*14-gR(14)));c.stroke();c.setLineDash([]);}
-
-  // === ANALYTICAL STRAIGHT LINES ===
-  c.strokeStyle='#000';c.lineWidth=1.5;
-  var pp = pHprecip2(CN);
-  var pc = pHcd(CN);
-
-  // Helper: convert SHE to display E
-  function eD(Eshe,pH){return Eshe-gR(pH);}
-
-  // UPPER BOUNDARY:
-  // In dissolved region (pH < pp): Line D is always below Line C after their crossing
-  // So upper = min(C,D). But we need to draw whichever is active.
-  // For pH < pc: Line D > Line C, so upper = Line C
-  // For pH > pc and pH < pp: Line D < Line C, so upper = Line D
-  // For pH > pp: upper = Line C (solid region)
-  
-  // Segment 1: Line D from pH=0 to pH=pc, BUT only if Line D < Line C there
-  // Actually at pH < pc, Line D > Line C, so Line C is the upper boundary
-  if(pc > 0 && pc < pp){
-    // pH 0 to pc: Line C is lower (active upper boundary)
-    // WAIT: at pH < pc, Line D > Line C. min(C,D) = Line C. 
-    // But Line C is Ni(OH)3/Ni(OH)2 — does Ni(OH)2 exist here? 
-    // Below Line C: Ni2+ is dissolved. Above Line C: Ni(OH)2 could form.
-    // Above Line D: Ni(OH)3 forms.
-    // So between C and D: Ni(OH)2 forms electrochemically!
-    // This means we have TWO lines: C (lower) separating Ni2+ from Ni(OH)2,
-    // and D (higher) separating... no. D is Ni(OH)3/Ni2+.
-    // Between C and D: need to check. 
-    // Actually for the simple Ni-H2O diagram, at pH < pc:
-    // Line C < Line D. So going up in E:
-    //   Below Line A: Ni metal
-    //   Line A to Line C: Ni2+ dissolved
-    //   Line C to Line D: Ni(OH)2 (electrochemically deposited)
-    //   Above Line D: Ni(OH)3
-    // This is 4 regions stacked vertically!
-    
-    // But wait: this means Ni(OH)2 appears even at low pH, which is unusual.
-    // In the classic Pourbaix diagram for Ni-H2O, Ni(OH)2 only appears 
-    // to the right of the precipitation line.
-    
-    // The issue: at pH < precipitation, Ni(OH)2 is thermodynamically 
-    // unstable relative to Ni2+ (it dissolves). But electrochemically,
-    // at potentials above Line C, you CAN oxidize Ni(OH)2 to Ni(OH)3.
-    // The question is: does Ni(OH)2 form at all at these pH values?
-    
-    // In a Pourbaix diagram, we only show the MOST STABLE phase.
-    // At pH < pp: Ni2+ is more stable than Ni(OH)2.
-    // So the Ni(OH)2 field should NOT appear here.
-    // The upper boundary of Ni2+ is Line D (Ni(OH)3/Ni2+).
-    
-    // CONCLUSION: In the dissolved region, the upper boundary is ALWAYS Line D.
-    // Line C is irrelevant in the dissolved region because Ni(OH)2 is unstable there.
-    
-    // Draw Line D from pH 0 to pp (entire dissolved region)
-    c.beginPath();
-    c.moveTo(xp(0), yp(eD(lineD(0,CN),0)));
-    c.lineTo(xp(pp), yp(eD(lineD(pp,CN),pp)));
-    c.stroke();
-  } else {
-    // pc >= pp: Line D is always above Line C in the dissolved region
-    // Draw Line D from pH 0 to pp
-    c.beginPath();
-    c.moveTo(xp(0), yp(eD(lineD(0,CN),0)));
-    c.lineTo(xp(pp), yp(eD(lineD(pp,CN),pp)));
-    c.stroke();
+  // Trivial speciation for Ni-H2O: no complexes, no bisection.
+  // Either Ni is fully dissolved at C_Ni, or Ni(OH)2(s) precipitates and free [Ni2+] is pinned by Ksp.
+  function speciate(pH, C_Ni){
+    const h  = Math.pow(10, -pH);
+    const OH = 1e-14 / h;
+    // If C_Ni * [OH-]^2 > Ksp, precipitate. Free Ni2+ = Ksp / [OH-]^2.
+    const Q  = C_Ni * OH * OH;
+    const solid = Q > Ksp;
+    const Ni2 = solid ? (Ksp / (OH*OH)) : C_Ni;
+    return { Ni2, solid, pH };
   }
-  // Line C from pp to 14 (solid Ni(OH)2 region)
-  c.beginPath();
-  c.moveTo(xp(pp), yp(eD(lineC(pp,CN),pp)));
-  c.lineTo(xp(14), yp(eD(lineC(14,CN),14)));
-  c.stroke();
 
-  // LOWER BOUNDARY:
-  // Segment 1: Line A from pH=0 to pH=pp (horizontal)
-  c.beginPath();
-  c.moveTo(xp(0), yp(eD(lineA(0,CN),0)));
-  c.lineTo(xp(pp), yp(eD(lineA(pp,CN),pp)));
-  c.stroke();
-  // Segment 2: Line B from pH=pp to pH=14 (gentle)
-  c.beginPath();
-  c.moveTo(xp(pp), yp(eD(lineB(pp,CN),pp)));
-  c.lineTo(xp(14), yp(eD(lineB(14,CN),14)));
-  c.stroke();
+  // Only one dissolved species in Ni-H2O system
+  const speciesKey  = ['Ni2+'];
+  const speciesProp = ['Ni2'];
+  const labelMap = {
+    'Ni':'Ni', 'Ni2+':'Ni²⁺',
+    'Ni(OH)2':'Ni(OH)₂','Ni(OH)3':'Ni(OH)₃'
+  };
+  const regionColor = {
+    'Ni':       '#E8E6DC',
+    'Ni2+':     '#CFE0F4',  // soft blue
+    'Ni(OH)2':  '#EDE2D2',  // warm grey-tan
+    'Ni(OH)3':  '#E9B79E'   // soft terracotta
+  };
 
-  // VERTICAL: precipitation boundary at pH=pp
-  // Bottom: Line A (lower boundary of Ni2+)
-  // Top: where Line D meets Line C (both boundaries connect here)
-  var E_bot = lineA(pp,CN);
-  var E_top_D = lineD(pp,CN);  // top of dissolved region
-  var E_top_C = lineC(pp,CN);  // bottom of Ni(OH)3 in solid region
-  // Draw vertical from Line A to Line C (full height of the boundary)
-  c.beginPath();
-  c.moveTo(xp(pp), yp(eD(E_bot,pp)));
-  c.lineTo(xp(pp), yp(eD(E_top_C,pp)));
-  c.stroke();
+  function dominantNi(sp){
+    if (sp.solid) return 'Ni(OH)2';
+    return 'Ni2+';
+  }
 
-  // Ticks
-  c.lineWidth=1;c.fillStyle='#000';c.font='12px '+fn;c.textAlign='center';
-  for(var t=0;t<=14;t+=2){c.beginPath();c.moveTo(xp(t),MT+PH);c.lineTo(xp(t),MT+PH+5);c.stroke();c.fillText(t,xp(t),MT+PH+18);}
-  c.textAlign='right';for(var i=Math.ceil(En*2);i<=Math.floor(Ex*2);i++){var e2=i/2;c.beginPath();c.moveTo(ML,yp(e2));c.lineTo(ML-5,yp(e2));c.stroke();c.fillText(e2.toFixed(1),ML-8,yp(e2)+4);}
-  c.font='14px '+fn;c.textAlign='center';c.fillText('pH',ML+PW/2,HT-16);
-  c.save();c.translate(16,MT+PH/2);c.rotate(-Math.PI/2);c.fillText('E vs '+gL()+' / V',0,0);c.restore();
-  if(wl){c.font='italic 10px '+fn;c.textAlign='left';c.fillText('(b)',xp(.3),yp(1.229-gR(.3))-4);c.fillText('(a)',xp(.3),yp(-gR(.3))+12);}
+  // Nernst E for the dissolved species in Ni-H2O (only Ni2+).
+  // Floor (Line A): Ni2+ + 2e- -> Ni,  E = -0.2405 + (S/2)*log[Ni2+]
+  // Roof  (Line D): Ni(OH)3 + 3H+ + e- -> Ni2+ + 3H2O,  E = +2.2389 - 3S*pH - S*log[Ni2+]
+  function E_floor_for(sp, name){
+    const cL = Math.log10(Math.max(sp.Ni2, 1e-30));
+    return E0_A0 + (S/2)*cL;
+  }
+  function E_roof_for(sp, name, pH){
+    const cL = Math.log10(Math.max(sp.Ni2, 1e-30));
+    return E0_D0 - 3*S*pH - S*cL;
+  }
 
-  // Region labels from centroids
-  var ct={};for(var p3=.3;p3<13.8;p3+=.3){var r3=gR(p3);for(var e3=En+.1;e3<Ex-.1;e3+=.06){var ss=classify(p3,e3+r3,CN);if(!ct[ss])ct[ss]={sx:0,sy:0,n:0};ct[ss].sx+=p3;ct[ss].sy+=e3;ct[ss].n++;}}
-  c.font='500 14px '+fn;c.textAlign='center';c.fillStyle='#000';
-  for(var k in ct){var v=ct[k];if(v.n<10)continue;c.fillText(NM[k]||k,xp(v.sx/v.n),yp(v.sy/v.n)+5);}
+  function E_floor_line(pH, sp){
+    if (sp.solid) return E0_B - S*pH;   // Line B: Ni(OH)2/Ni
+    return E_floor_for(sp, 'Ni2+');     // Line A
+  }
+  function E_roof_line(pH, sp){
+    if (sp.solid) return E0_C - S*pH;   // Line C: Ni(OH)3/Ni(OH)2
+    return E_roof_for(sp, 'Ni2+', pH);  // Line D
+  }
 
-  // Title
-  c.font='italic 12px '+fn;c.textAlign='left';
-  var fm=function(v){return v>=1?v.toFixed(2)+'M':(v>=.001?(v*1e3).toFixed(1)+'mM':(v*1e6).toFixed(0)+'\u00B5M');};
-  c.fillText('Ni\u2013H\u2082O, [Ni\u00B2\u207A]='+fm(CN)+', 25\u00B0C',ML,22);
-}
+  const cv = document.getElementById('cv');
+  const PADL=70, PADR=24, PADT=32, PADB=52;
+  const PH_MIN=0, PH_MAX=14, E_MIN=-1.0, E_MAX=2.6;
+  function x(pH,w){return PADL+(pH-PH_MIN)/(PH_MAX-PH_MIN)*(w-PADL-PADR);}
+  function y(E,h){return PADT+(E_MAX-E)/(E_MAX-E_MIN)*(h-PADT-PADB);}
+  function pHfromPx(px,w){return PH_MIN+(px-PADL)/(w-PADL-PADR)*(PH_MAX-PH_MIN);}
 
-window.render=function(){
-  draw(document.getElementById('cv'),1.5);
-  var CN=gN();
-  var pp=pHprecip2(CN);
-  var pc=pHcd(CN);
-  document.getElementById('info').innerHTML=
-    '<b>Verified E\u00B0 (all from \u0394G\u00B0):</b><br>'+
-    'A: Ni\u00B2\u207A/Ni, E\u00B0='+E0A.toFixed(4)+'V, <b>slope=0</b> (0H\u207A/2e\u207B)<br>'+
-    'B: Ni(OH)\u2082/Ni, E\u00B0='+E0B.toFixed(4)+'V, <b>slope=\u2212'+(-SB).toFixed(5)+'</b> (2H\u207A/2e\u207B)<br>'+
-    'C: Ni(OH)\u2083/Ni(OH)\u2082, E\u00B0='+E0C.toFixed(4)+'V, <b>slope=\u2212'+(-SC).toFixed(5)+'</b> (1H\u207A/1e\u207B)<br>'+
-    'D: Ni(OH)\u2083/Ni\u00B2\u207A, E\u00B0='+E0D.toFixed(4)+'V, <b>slope=\u2212'+(-SD).toFixed(5)+'</b> (3H\u207A/1e\u207B)<br>'+
-    'Ksp='+Ksp.toExponential(2)+
-    ' | Upper kink (C\u2229D): pH='+pc.toFixed(2)+
-    ' | Precip (vertical): pH='+pp.toFixed(2);
-};
+  function findTransitions(C_Ni){
+    const N = 421;
+    const xs=[], doms=[];
+    for (let i=0;i<N;i++){
+      const pH = PH_MIN + i*(PH_MAX-PH_MIN)/(N-1);
+      const s = speciate(pH, C_Ni);
+      if (!s){ xs.push(pH); doms.push(null); continue; }
+      xs.push(pH); doms.push(s.solid?'Ni(OH)2':dominantNi(s));
+    }
+    const raw=[];
+    for (let i=1;i<doms.length;i++){
+      if (doms[i] !== doms[i-1] && doms[i] && doms[i-1]){
+        let lo=xs[i-1], hi=xs[i]; const dlo=doms[i-1];
+        for (let b=0; b<20; b++){
+          const mid=0.5*(lo+hi); const s=speciate(mid, C_Ni);
+          if (!s) break;
+          const dm = s.solid?'Ni(OH)2':dominantNi(s);
+          if (dm===dlo) lo=mid; else hi=mid;
+        }
+        raw.push({pH:0.5*(lo+hi), from:doms[i-1], to:doms[i]});
+      }
+    }
+    const t=[]; for (const r of raw){ if (t.length && Math.abs(r.pH - t[t.length-1].pH) < 0.04) continue; t.push(r); }
+    return t;
+  }
 
-window.exportPNG=function(){
-  var cv=document.createElement('canvas');draw(cv,3);
-  var img=document.createElement('img');img.src=cv.toDataURL('image/png');img.style.maxWidth='100%';img.title='Right-click to save';
-  document.getElementById('png-host').innerHTML='';document.getElementById('png-host').appendChild(img);document.getElementById('png-box').style.display='block';};
+  function draw(targetCv){
+    const w = targetCv.width, h = targetCv.height;
+    const c = targetCv.getContext('2d');
+    c.setTransform(1,0,0,1,0,0);
+    const C_Ni  = Math.pow(10, parseFloat(document.getElementById('cNi').value));
+    const paper = document.getElementById('paper').checked;
+    const showWater = document.getElementById('water').checked;
+    const refSel = document.getElementById('ref');
+    const offRef = refSel.value === 'RHE' ? null : parseFloat(refSel.value);
+    function ydisp(E_she, pH){ if (offRef===null) return y(E_she+S*pH,h); return y(E_she-offRef,h); }
+    c.fillStyle = '#FFFFFF'; c.fillRect(0,0,w,h);
 
-['ni','niu','pm','wl','re'].forEach(function(id){var el=document.getElementById(id);el.addEventListener('input',render);el.addEventListener('change',render);});
-render();
+    const colDom   = new Array(w);
+    const colEf    = new Float64Array(w);
+    const colEr    = new Float64Array(w);
+    const colSolid = new Array(w);
+    for (let px=PADL; px<w-PADR; px++){
+      const pH = pHfromPx(px,w);
+      const s  = speciate(pH, C_Ni);
+      if (!s){
+        colDom[px] = null; colEf[px] = NaN; colEr[px] = NaN; colSolid[px] = false;
+        continue;
+      }
+      colSolid[px] = s.solid;
+      colDom[px]   = s.solid?'Ni(OH)2':dominantNi(s);
+      colEr[px]    = E_roof_line(pH, s);
+      colEf[px]    = E_floor_line(pH, s);
+    }
+
+    if (!paper){
+      for (let px=PADL; px<w-PADR; px++){
+        if (colDom[px] === null) continue;
+        const pH = pHfromPx(px,w);
+        const yTop = Math.max(ydisp(colEr[px], pH), PADT);
+        const yBot = Math.min(ydisp(colEf[px], pH), h-PADB);
+        c.fillStyle = regionColor['Ni(OH)3']; c.fillRect(px, PADT, 1, Math.max(0, yTop-PADT));
+        c.fillStyle = regionColor[colDom[px]]; c.fillRect(px, yTop, 1, Math.max(0, yBot-yTop));
+        c.fillStyle = regionColor['Ni']; c.fillRect(px, yBot, 1, Math.max(0, (h-PADB)-yBot));
+      }
+    }
+
+    const fontMain = paper ? 'serif' : '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+    // Frame + axes
+    c.strokeStyle='#2C2C2A'; c.fillStyle='#2C2C2A'; c.lineWidth=1.2;
+    c.strokeRect(PADL,PADT,w-PADL-PADR,h-PADT-PADB);
+    c.font='500 13px '+fontMain; c.textAlign='center'; c.textBaseline='top';
+    for (let p=0; p<=14; p++){
+      const xp=x(p,w);
+      c.beginPath(); c.moveTo(xp,h-PADB); c.lineTo(xp,h-PADB+5); c.stroke();
+      c.fillText(p.toString(),xp,h-PADB+8);
+    }
+    c.font='500 15px '+fontMain; c.fillText('pH',(PADL+w-PADR)/2,h-22);
+    c.font='500 13px '+fontMain; c.textAlign='right'; c.textBaseline='middle';
+    for (let e=-1.0; e<=2.6+1e-9; e+=0.2){
+      const yp=y(e,h);
+      c.beginPath(); c.moveTo(PADL-5,yp); c.lineTo(PADL,yp); c.stroke();
+      c.fillText(e.toFixed(1),PADL-8,yp);
+    }
+    c.save(); c.translate(20,(PADT+h-PADB)/2); c.rotate(-Math.PI/2);
+    c.textAlign='center'; c.textBaseline='middle'; c.font='500 15px '+fontMain;
+    const refLabel=refSel.value==='RHE'?'RHE':refSel.options[refSel.selectedIndex].text.split(' ')[0];
+    c.fillText('E vs '+refLabel+' / V',0,0); c.restore();
+
+    // Boundary lines (dominant species roof/floor)
+    c.lineWidth = 2; c.strokeStyle = '#791F1F';
+    for (const kind of ['floor','roof']){
+      let pen=false; c.beginPath();
+      for (let pH=PH_MIN; pH<=PH_MAX+1e-9; pH+=0.04){
+        const s = speciate(pH, C_Ni);
+        if (!s){ pen=false; continue; }
+        const E_she = (kind==='floor') ? E_floor_line(pH, s) : E_roof_line(pH, s);
+        const E_disp = offRef===null ? E_she + S*pH : E_she - offRef;
+        if (E_disp < E_MIN || E_disp > E_MAX){ pen=false; continue; }
+        const px = x(pH,w), py = y(E_disp,h);
+        if (!pen){ c.moveTo(px,py); pen=true; } else c.lineTo(px,py);
+      }
+      c.stroke();
+    }
+
+    // Dominance-transition verticals
+    const trs = findTransitions(C_Ni);
+    c.strokeStyle = '#791F1F'; c.lineWidth = 1.2; c.setLineDash([4,4]);
+    for (const t of trs){
+      const s = speciate(t.pH, C_Ni);
+      if (!s) continue;
+      const Ef = E_floor_line(t.pH, s), Er = E_roof_line(t.pH, s);
+      const yEf = ydisp(Ef, t.pH), yEr = ydisp(Er, t.pH);
+      const px = x(t.pH, w);
+      const yA = Math.max(yEr, PADT), yB = Math.min(yEf, h-PADB);
+      if (yB > yA){ c.beginPath(); c.moveTo(px,yA); c.lineTo(px,yB); c.stroke(); }
+    }
+    c.setLineDash([]);
+
+    // Water lines
+    if (showWater){
+      c.strokeStyle = paper ? '#444' : '#185FA5'; c.lineWidth = 1.2; c.setLineDash([6,4]);
+      for (const E0_w of [0, 1.229]){
+        let pen2 = false; c.beginPath();
+        for (let pH=PH_MIN; pH<=PH_MAX; pH+=0.5){
+          const E = E0_w - S*pH;
+          const E_disp = offRef===null ? E+S*pH : E-offRef;
+          if (E_disp<E_MIN || E_disp>E_MAX){ pen2=false; continue; }
+          const px=x(pH,w), py=y(E_disp,h);
+          if (!pen2){ c.moveTo(px,py); pen2=true; } else c.lineTo(px,py);
+        }
+        c.stroke();
+      }
+      c.setLineDash([]);
+    }
+
+    // Region labels (rotate if narrow)
+    const runs=[]; let runStart=PADL;
+    for (let px=PADL+1; px<=w-PADR; px++){
+      if (px===w-PADR || colDom[px]!==colDom[px-1]){
+        runs.push({name:colDom[px-1], a:runStart, b:px}); runStart=px;
+      }
+    }
+    c.fillStyle='#2C2C2A';
+    c.textAlign='center'; c.textBaseline='middle';
+    for (const r of runs){
+      const wpx = r.b - r.a;
+      if (wpx < 14) continue;
+      if (r.name === 'Ni(OH)2' || r.name === null) continue;
+      const midPx = 0.5*(r.a+r.b);
+      const pH = pHfromPx(midPx,w);
+      const s = speciate(pH, C_Ni);
+      if (!s) continue;
+      const Ef = E_floor_line(pH,s), Er = E_roof_line(pH,s);
+      const yEf = ydisp(Ef,pH), yEr = ydisp(Er,pH);
+      const cy = 0.5*(Math.max(yEr,PADT)+Math.min(yEf,h-PADB));
+      const text = labelMap[r.name]||r.name;
+      const estW = text.length * 7;
+      if (estW > wpx - 4){
+        c.save(); c.translate(midPx, cy); c.rotate(-Math.PI/2);
+        c.font='500 12px '+fontMain; c.fillText(text, 0, 0); c.restore();
+      } else {
+        const fs = wpx<60 ? 12 : 15;
+        c.font='500 '+fs+'px '+fontMain;
+        c.fillText(text, midPx, cy);
+      }
+    }
+    c.font='500 16px '+fontMain;
+    c.fillText('Ni(OH)₃', x(11,w), y(2.2,h));
+    c.fillText('Ni',      x(7,w),  y(-0.7,h));
+    let oh2x=0, oh2n=0;
+    for (let px=PADL; px<w-PADR; px++){ if (colSolid[px]){ oh2x+=px; oh2n++; } }
+    if (oh2n > 30){
+      const pxm = oh2x/oh2n; const pH = pHfromPx(pxm,w);
+      const s = speciate(pH, C_Ni);
+      if (s){
+        const Ef = E_floor_line(pH,s), Er = E_roof_line(pH,s);
+        const yEf = ydisp(Ef,pH), yEr = ydisp(Er,pH);
+        c.fillText('Ni(OH)₂', pxm, 0.5*(Math.max(yEr,PADT)+Math.min(yEf,h-PADB)));
+      }
+    }
+    // Title
+    c.font='500 14px '+fontMain; c.textAlign='left'; c.textBaseline='top'; c.fillStyle='#2C2C2A';
+    c.fillText('Ni-H₂O · 25 °C · C_Ni = '+fmtConc(C_Ni), PADL, 6);
+  }
+
+  function update(){
+    const cNiM = Math.pow(10, parseFloat(document.getElementById('cNi').value));
+    document.getElementById('cNiOut').textContent = fmtConc(cNiM);
+    draw(cv);
+    const pp = 14 + 0.5 * Math.log10(Ksp / cNiM);
+    document.getElementById('info').textContent = 'Ni(OH)₂ precipitates at pH ' + pp.toFixed(2) + '. Above this pH the dissolved Ni²⁺ concentration is pinned by Ksp; below it, all Ni stays as Ni²⁺.';
+  }
+  ['cNi','ref','water','paper'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener(el.tagName==='SELECT' || el.type==='checkbox' ? 'change' : 'input', update);
+  });
+  document.getElementById('png').addEventListener('click', function(){
+    const scale = 3;
+    const off = document.createElement('canvas'); off.width = cv.width; off.height = cv.height; draw(off);
+    const hi = document.createElement('canvas'); hi.width = cv.width*scale; hi.height = cv.height*scale;
+    const hc = hi.getContext('2d'); hc.imageSmoothingEnabled = false;
+    hc.drawImage(off, 0, 0, hi.width, hi.height);
+    const url = hi.toDataURL('image/png');
+    const out = document.getElementById('pngOut'); out.innerHTML = '';
+    const img = document.createElement('img'); img.src = url;
+    img.style.maxWidth='100%'; img.style.border='0.5px solid rgba(0,0,0,0.15)';
+    img.style.borderRadius='8px';
+    const note = document.createElement('div');
+    note.style.cssText='font-size:12px;color:#5F5E5A;margin-top:4px';
+    note.textContent = 'Right-click image to save as PNG (3× resolution)';
+    out.appendChild(img); out.appendChild(note);
+  });
+  update();
 })();
-</script></body></html>
+</script>
+</body>
+</html>
